@@ -1,5 +1,8 @@
 # FinTrack — Personal Finance Tracker
 
+[![CI](https://github.com/RoudyDlebtani/finance-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/RoudyDlebtani/finance-tracker/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A full-stack personal finance dashboard built as a portfolio demo. Track income
 and expenses, set budgets and savings goals, and explore your money through an
 interactive, filterable dashboard with charts.
