@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
+import { useConfirm, useAlert } from "@/components/ui/confirm";
 
 const PALETTE = [
   "#6366f1", "#22c55e", "#f97316", "#ef4444", "#3b82f6",
@@ -17,17 +18,24 @@ const PALETTE = [
 
 export function CategoriesView({ categories }: { categories: Category[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
+  const alert = useAlert();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this category? Its transactions become uncategorized."))
-      return;
+    const ok = await confirm({
+      title: "Delete category?",
+      message: "Its transactions become uncategorized.",
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     const fd = new FormData();
     fd.set("id", id);
     const result = await deleteCategory(fd);
     if (!result.ok) {
-      alert(result.error);
+      await alert({ title: "Couldn't delete", message: result.error });
       return;
     }
     router.refresh();

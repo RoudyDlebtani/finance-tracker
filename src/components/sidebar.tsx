@@ -8,15 +8,23 @@ import {
   Target,
   PiggyBank,
   Tags,
+  Lightbulb,
+  CalendarClock,
+  Wallet,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/transactions", label: "Transactions", icon: ArrowLeftRight },
+  { href: "/dashboard/accounts", label: "Accounts", icon: Wallet },
   { href: "/dashboard/budgets", label: "Budgets", icon: PiggyBank },
   { href: "/dashboard/goals", label: "Goals", icon: Target },
   { href: "/dashboard/categories", label: "Categories", icon: Tags },
+  { href: "/dashboard/recurring", label: "Recurring", icon: CalendarClock },
+  { href: "/dashboard/insights", label: "Insights", icon: Lightbulb },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 export function SidebarNav() {

@@ -49,6 +49,12 @@ const nonNegativeAmount = z.coerce
   .number()
   .min(0, "Amount can't be negative");
 
+// Optional non-negative amount: empty/absent stays undefined (field not edited).
+const optionalNonNegativeAmount = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() !== "" ? v : undefined),
+  z.coerce.number().min(0, "Amount can't be negative").optional(),
+);
+
 const boolFromForm = z.preprocess(
   (v) => v === "on" || v === true || v === "true",
   z.boolean(),
@@ -100,7 +106,33 @@ export const goalSchema = z.object({
   id: optionalId,
   name: z.string().trim().min(1, "Name is required").max(80),
   target_amount: positiveAmount,
+  current_amount: optionalNonNegativeAmount, // only sent when editing
   deadline: nullableDate,
+});
+
+export const accountSchema = z.object({
+  id: optionalId,
+  name: z.string().trim().min(1, "Name is required").max(60),
+  type: z.enum(["checking", "savings", "cash", "credit", "investment"]),
+  balance: z.coerce.number(), // can be negative (e.g. a credit card)
+  color: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() !== "" ? v : undefined),
+    z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/, "Invalid color")
+      .default("#6366f1"),
+  ),
+});
+
+export const profileSchema = z.object({
+  display_name: nullableText(80),
+  currency: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() !== "" ? v.toUpperCase() : undefined),
+    z
+      .string()
+      .regex(/^[A-Z]{3}$/, "Use a 3-letter currency code")
+      .default("USD"),
+  ),
 });
 
 export const contributeSchema = z.object({

@@ -11,6 +11,8 @@ import {
   goalSchema,
   contributeSchema,
   deleteSchema,
+  accountSchema,
+  profileSchema,
 } from "@/lib/validation";
 
 /** Get the authenticated user id or throw — every action must be authorized. */
@@ -142,16 +144,22 @@ export async function deleteBudget(formData: FormData): Promise<ActionResult> {
 export async function saveGoal(formData: FormData): Promise<ActionResult> {
   const parsed = parseForm(goalSchema, formData);
   if (!parsed.ok) return parsed;
-  const { id, name, target_amount, deadline } = parsed.data;
+  const { id, name, target_amount, current_amount, deadline } = parsed.data;
 
   const { supabase, userId } = await requireUser();
-  // Editing never touches current_amount (contributions own that balance);
-  // new goals start at the DB default of 0.
+  // New goals start at the DB default of 0. On edit, current_amount is set only
+  // when the form provided a value (the "Saved so far" field) — otherwise the
+  // balance is left to the contribution flow.
+  const update: {
+    name: string;
+    target_amount: number;
+    deadline: string | null;
+    current_amount?: number;
+  } = { name, target_amount, deadline };
+  if (current_amount !== undefined) update.current_amount = current_amount;
+
   const { error } = id
-    ? await supabase
-        .from("goals")
-        .update({ name, target_amount, deadline })
-        .eq("id", id)
+    ? await supabase.from("goals").update(update).eq("id", id)
     : await supabase
         .from("goals")
         .insert({ user_id: userId, name, target_amount, deadline });
@@ -186,6 +194,56 @@ export async function deleteGoal(formData: FormData): Promise<ActionResult> {
     .delete()
     .eq("id", parsed.data.id);
   if (error) return fail(error.message);
+  revalidateAll();
+  return { ok: true };
+}
+
+// ---------- Accounts ----------
+
+export async function saveAccount(formData: FormData): Promise<ActionResult> {
+  const parsed = parseForm(accountSchema, formData);
+  if (!parsed.ok) return parsed;
+  const { id, name, type, balance, color } = parsed.data;
+
+  const { supabase, userId } = await requireUser();
+  const payload = { user_id: userId, name, type, balance, color };
+
+  const { error } = id
+    ? await supabase.from("accounts").update(payload).eq("id", id)
+    : await supabase.from("accounts").insert(payload);
+  if (error) return fail(error.message);
+
+  revalidateAll();
+  return { ok: true };
+}
+
+export async function deleteAccount(formData: FormData): Promise<ActionResult> {
+  const parsed = parseForm(deleteSchema, formData);
+  if (!parsed.ok) return parsed;
+  const { supabase } = await requireUser();
+  const { error } = await supabase
+    .from("accounts")
+    .delete()
+    .eq("id", parsed.data.id);
+  if (error) return fail(error.message);
+  revalidateAll();
+  return { ok: true };
+}
+
+// ---------- Profile / preferences ----------
+
+export async function saveProfile(formData: FormData): Promise<ActionResult> {
+  const parsed = parseForm(profileSchema, formData);
+  if (!parsed.ok) return parsed;
+  const { display_name, currency } = parsed.data;
+
+  const { supabase, userId } = await requireUser();
+  // Upsert by user_id — covers users who predate the profiles table.
+  const { error } = await supabase
+    .from("profiles")
+    .upsert({ user_id: userId, display_name, currency });
+  if (error) return fail(error.message);
+
   revalidateAll();
   return { ok: true };
 }

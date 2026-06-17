@@ -60,6 +60,29 @@ The parts worth a closer look in a code review:
 
 ## Getting started
 
+You can run the backend two ways: **locally with Docker** (no account, fully
+offline) or against a **free hosted Supabase project**. Local is fastest to try;
+hosted is what you deploy to.
+
+### Option A — Run Supabase locally with Docker (recommended for dev)
+
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) running.
+
+```bash
+npm install
+npm run db:start     # boots Postgres + Auth + API in Docker (first run pulls images)
+cp .env.local.example .env.local   # then paste the keys db:start prints (URL + anon + service_role)
+npm run dev          # http://localhost:3000
+```
+
+`npm run db:status` shows the local URL/keys and Studio (`http://127.0.0.1:54323`);
+`npm run db:stop` shuts it down; `npm run db:reset` rebuilds the DB from
+`supabase/migrations/`. Email confirmation is disabled locally, so signup logs
+you straight in. (The local keys are the CLI's shared demo values — safe for dev,
+never use them in production.)
+
+### Option B — Hosted Supabase
+
 ### 1. Create a Supabase project
 
 1. Go to [supabase.com](https://supabase.com) → **New project** (free tier).

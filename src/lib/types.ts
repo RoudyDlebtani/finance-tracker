@@ -47,3 +47,27 @@ export interface Goal {
   deadline: string | null;
   created_at: string;
 }
+
+export type AccountType =
+  | "checking"
+  | "savings"
+  | "cash"
+  | "credit"
+  | "investment";
+
+export interface Account {
+  id: string;
+  user_id: string;
+  name: string;
+  type: AccountType;
+  balance: number;
+  color: string;
+  created_at: string;
+}
+
+export interface Profile {
+  user_id: string;
+  display_name: string | null;
+  currency: string;
+  created_at: string;
+}

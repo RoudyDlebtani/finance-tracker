@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/field";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
+import { useConfirm, useAlert } from "@/components/ui/confirm";
 
 type SortKey = "date" | "amount";
 
@@ -21,6 +22,8 @@ interface Props {
 
 export function TransactionsView({ transactions, categories }: Props) {
   const router = useRouter();
+  const confirm = useConfirm();
+  const alert = useAlert();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -60,12 +63,18 @@ export function TransactionsView({ transactions, categories }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this transaction?")) return;
+    const ok = await confirm({
+      title: "Delete transaction?",
+      message: "This can't be undone.",
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     const fd = new FormData();
     fd.set("id", id);
     const result = await deleteTransaction(fd);
     if (!result.ok) {
-      alert(result.error);
+      await alert({ title: "Couldn't delete", message: result.error });
       return;
     }
     router.refresh();

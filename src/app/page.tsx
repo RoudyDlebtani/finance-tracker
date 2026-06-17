@@ -6,6 +6,7 @@ import {
   Repeat,
   Download,
   ShieldCheck,
+  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -43,6 +44,21 @@ const features = [
   },
 ];
 
+const steps = [
+  {
+    title: "Sign in",
+    desc: "Create a demo account in seconds — no real bank connection needed.",
+  },
+  {
+    title: "Add transactions",
+    desc: "Log income and expenses, mark recurring ones, and organize with categories.",
+  },
+  {
+    title: "See the insights",
+    desc: "Watch your dashboard, budgets, and savings goals update instantly.",
+  },
+];
+
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col">
@@ -64,8 +80,13 @@ export default function Home() {
       </header>
 
       <main className="flex-1">
-        <section className="mx-auto max-w-3xl px-6 py-20 text-center sm:py-28">
-          <span className="inline-block rounded-full bg-accent px-3 py-1 text-xs font-medium text-primary">
+        <section className="relative overflow-hidden">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(60%_60%_at_50%_0%,var(--accent),transparent)]"
+          />
+          <div className="mx-auto max-w-3xl px-6 py-20 text-center sm:py-28">
+          <span className="inline-block rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
             Personal Finance Tracker
           </span>
           <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl">
@@ -87,6 +108,7 @@ export default function Home() {
               </Button>
             </Link>
           </div>
+          </div>
         </section>
 
         <section className="mx-auto max-w-6xl px-6 pb-24">
@@ -105,11 +127,65 @@ export default function Home() {
             ))}
           </div>
         </section>
-      </main>
 
-      <footer className="border-t border-border py-6 text-center text-sm text-muted-foreground">
-        Built with Next.js, Supabase & Recharts · Portfolio demo
-      </footer>
+        <section className="border-t border-border bg-card/40">
+          <div className="mx-auto max-w-6xl px-6 py-20 sm:py-24">
+            <div className="mx-auto max-w-2xl text-center">
+              <span className="inline-block rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
+                How it works
+              </span>
+              <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl">
+                Up and running in three steps
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
+                No spreadsheets, no setup headaches. Start tracking your money in
+                minutes.
+              </p>
+            </div>
+            <div className="mt-12 grid gap-6 sm:grid-cols-3">
+              {steps.map((s, i) => (
+                <div
+                  key={s.title}
+                  className="relative rounded-xl border border-border bg-card p-6"
+                >
+                  <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent text-base font-bold text-primary">
+                    {i + 1}
+                  </div>
+                  <h3 className="mb-1 font-semibold">{s.title}</h3>
+                  <p className="text-sm text-muted-foreground">{s.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-primary text-primary-foreground">
+          <div className="mx-auto max-w-3xl px-6 py-20 text-center sm:py-24">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              Ready to take control of your money?
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-primary-foreground/80">
+              Jump into the live demo with realistic sample data — no sign-up
+              friction, nothing to lose.
+            </p>
+            <div className="mt-8 flex justify-center">
+              <Link href="/signup">
+                <Button
+                  size="md"
+                  variant="outline"
+                  className="border-transparent bg-white px-6 text-slate-900 hover:bg-white/90"
+                >
+                  Try the live demo
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+            <p className="mt-10 text-sm text-primary-foreground/70">
+              Built with Next.js, Supabase & Recharts · Portfolio demo
+            </p>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }

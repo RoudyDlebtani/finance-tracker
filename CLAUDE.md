@@ -16,7 +16,20 @@ npm run build    # Production build — also runs full TypeScript type-check
 npm run lint     # ESLint (eslint-config-next, flat config)
 npm run test     # Vitest (watch); `npm run test:run` for a single CI-style pass
 npm run seed     # Seed demo data via scripts/seed.ts (needs service-role key)
+
+npm run db:start   # Local Supabase stack (Postgres+Auth+API) in Docker
+npm run db:stop    # Stop the local stack
+npm run db:status  # Show local URL + keys + Studio link
+npm run db:reset   # Rebuild local DB from supabase/migrations/
 ```
+
+Local dev uses the **Supabase CLI** (a devDependency, run via `npx supabase`)
+which runs the full stack in Docker. `supabase/config.toml` disables analytics
+(the logflare image is flaky to pull) and email confirmation, and points auth at
+`http://localhost:3000`. The schema lives in both `supabase/schema.sql` (manual
+hosted setup) and `supabase/migrations/` (CLI/local); keep them in sync. Note:
+`NEXT_PUBLIC_*` env vars are read at dev-server startup — restart `npm run dev`
+after changing `.env.local`.
 
 Tests cover the pure domain logic in `src/lib/finance.ts`
 (`src/lib/finance.test.ts`) — no Supabase mocking needed. `npm run build` is
@@ -61,6 +74,39 @@ RLS) + Recharts.** Tailwind v4 with class-based dark mode.
   all transaction filtering/sorting happen client-side** over the full dataset
   passed from the server — there is no per-filter refetch.
 
+### Dashboard pages (`src/app/dashboard/*`)
+
+Each route is a thin `page.tsx` fetching from `src/lib/data.ts` and rendering a
+client `*-view.tsx`. What each one is for:
+
+- **`/dashboard` — Overview** (`dashboard-overview.tsx`): summary cards + the
+  three charts, recent transactions, and upcoming recurring. A global date-range
+  selector recalculates everything client-side.
+- **`/dashboard/transactions`** (`transactions-view.tsx`): the only full CRUD
+  surface for transactions — search, type/category filters, sorting, CSV export.
+  This is where a transaction is marked recurring (`is_recurring` +
+  `recurrence_interval`).
+- **`/dashboard/accounts`** (`accounts-view.tsx`): manually-tracked wallet
+  balances (checking/savings/cash/credit/investment) + a total card. Standalone —
+  **not** linked to transactions. Backed by the `accounts` table.
+- **`/dashboard/budgets`** (`budgets-view.tsx`): monthly limits per category and
+  overall, with progress bars and over-budget warnings; current spend is summed
+  client-side from transactions.
+- **`/dashboard/goals`** (`goals-view.tsx`): savings goals with progress and
+  contributions (atomic `increment_goal` RPC).
+- **`/dashboard/categories`** (`categories-view.tsx`): color-coded category CRUD.
+- **`/dashboard/recurring`** (`recurring-view.tsx`): **read-only.** Expands the
+  recurring transactions via `upcomingRecurring()` over a 3/6/12-month horizon —
+  e.g. an Electricity bill marked monthly shows one upcoming occurrence per month
+  at the start of each month. Shows projected income/expense/net + a timeline.
+- **`/dashboard/insights`** (`insights-view.tsx`): **read-only.** Plain-language
+  "takeaways" (savings rate, spend vs. last month, top category, over-budget
+  warnings, biggest recurring bill) rendered as tone-colored cards. The logic is
+  the pure `buildInsights(transactions, budgets)` in `finance.ts` — unit-tested,
+  no DB access.
+- **`/dashboard/settings`** (`settings-view.tsx`): edit display name + preferred
+  currency (`profiles` table); account email is read-only.
+
 ### Pure domain logic
 
 `src/lib/finance.ts` holds all aggregation as pure functions (`summarize`,
@@ -71,11 +117,20 @@ single row with `is_recurring` + `recurrence_interval`.
 
 ### Database
 
-`supabase/schema.sql` is the single source of truth: tables (`categories`,
-`transactions`, `budgets`, `goals`), RLS policies, and an `on_auth_user_created`
-trigger that seeds default categories for every new user. Run it manually in the
-Supabase SQL Editor — there is no migration tooling. Budgets use `category_id =
-null` to mean an overall budget; `saveBudget` upserts by delete-then-insert.
+`supabase/schema.sql` is the canonical schema — tables (`categories`,
+`transactions`, `budgets`, `goals`, `accounts`, `profiles`), RLS policies (every
+table is scoped to `auth.uid() = user_id` via one `do $$` loop over a table-name
+array — add new tables there), atomic RPCs (`increment_goal`, `set_budget`), and
+an `on_auth_user_created` trigger that seeds default categories **and a
+`profiles` row** for each new user. The same schema is mirrored in
+`supabase/migrations/` (applied locally by `npm run db:reset`); **keep both in
+sync** when changing the schema — additive changes go in a new migration file.
+For hosted setup, run `schema.sql` manually in the SQL Editor.
+
+Conventions: budgets use `category_id = null` for an overall budget (enforced by
+partial unique indexes); `saveBudget` and `contributeToGoal` call the atomic RPCs
+rather than read-modify-write; `accounts.balance` has **no** non-negative check
+(credit cards go negative); `profiles` is one row per user keyed by `user_id`.
 
 ### Environment
 

@@ -2,14 +2,17 @@ import {
   addMonths,
   addWeeks,
   addYears,
+  endOfMonth,
   format,
   isAfter,
   isBefore,
   isWithinInterval,
   parseISO,
   startOfMonth,
+  subMonths,
 } from "date-fns";
-import type { TransactionWithCategory } from "./types";
+import type { Budget, TransactionWithCategory } from "./types";
+import { formatCurrency } from "./utils";
 
 export interface DateRange {
   from: Date;
@@ -131,4 +134,133 @@ export function upcomingRecurring(
   }
 
   return result.sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+export interface Insight {
+  id: string;
+  tone: "positive" | "negative" | "warning" | "neutral";
+  title: string;
+  detail: string;
+}
+
+/**
+ * Derive plain-language "takeaways" about this month's finances, comparing against
+ * last month and the user's budgets. Pure — reuses summarize/withinRange/
+ * expensesByCategory so it stays unit-testable with no DB access.
+ */
+export function buildInsights(
+  transactions: TransactionWithCategory[],
+  budgets: Budget[],
+  now: Date = new Date(),
+): Insight[] {
+  if (transactions.length === 0) {
+    return [
+      {
+        id: "empty",
+        tone: "neutral",
+        title: "No data yet",
+        detail: "Add some transactions to start seeing insights.",
+      },
+    ];
+  }
+
+  const thisMonth = withinRange(transactions, {
+    from: startOfMonth(now),
+    to: endOfMonth(now),
+  });
+  const lastMonthDate = subMonths(now, 1);
+  const lastMonth = withinRange(transactions, {
+    from: startOfMonth(lastMonthDate),
+    to: endOfMonth(lastMonthDate),
+  });
+
+  const summary = summarize(thisMonth);
+  const lastSummary = summarize(lastMonth);
+  const insights: Insight[] = [];
+
+  // Savings rate this month.
+  if (summary.balance < 0) {
+    insights.push({
+      id: "savings",
+      tone: "negative",
+      title: "You spent more than you earned",
+      detail: `This month you're down ${formatCurrency(Math.abs(summary.balance))}. Expenses outpaced income.`,
+    });
+  } else if (summary.income > 0) {
+    insights.push({
+      id: "savings",
+      tone: summary.savingsRate >= 20 ? "positive" : "neutral",
+      title: `You saved ${summary.savingsRate.toFixed(0)}% this month`,
+      detail: `${formatCurrency(summary.balance)} kept from ${formatCurrency(summary.income)} of income.`,
+    });
+  }
+
+  // Spending vs last month.
+  if (lastSummary.expenses > 0) {
+    const change =
+      ((summary.expenses - lastSummary.expenses) / lastSummary.expenses) * 100;
+    const up = change >= 0;
+    insights.push({
+      id: "trend",
+      tone: Math.abs(change) < 5 ? "neutral" : up ? "negative" : "positive",
+      title: `Spending ${up ? "up" : "down"} ${Math.abs(change).toFixed(0)}% vs last month`,
+      detail: `${formatCurrency(summary.expenses)} this month vs ${formatCurrency(lastSummary.expenses)} last month.`,
+    });
+  }
+
+  // Top spending category this month.
+  const byCategory = expensesByCategory(thisMonth);
+  if (byCategory.length > 0 && summary.expenses > 0) {
+    const top = byCategory[0];
+    const pct = (top.value / summary.expenses) * 100;
+    insights.push({
+      id: "top-category",
+      tone: "neutral",
+      title: `${top.name} is your top category`,
+      detail: `${formatCurrency(top.value)} — ${pct.toFixed(0)}% of this month's spending.`,
+    });
+  }
+
+  // Budget over-runs this month.
+  const spendByCategory = new Map<string, number>();
+  for (const t of thisMonth) {
+    if (t.type !== "expense") continue;
+    const key = t.category_id ?? "__none__";
+    spendByCategory.set(key, (spendByCategory.get(key) ?? 0) + Number(t.amount));
+    spendByCategory.set("__all__", (spendByCategory.get("__all__") ?? 0) + Number(t.amount));
+  }
+  for (const b of budgets) {
+    const spent =
+      b.category_id === null
+        ? (spendByCategory.get("__all__") ?? 0)
+        : (spendByCategory.get(b.category_id) ?? 0);
+    if (spent <= Number(b.amount)) continue;
+    const name =
+      b.category_id === null
+        ? "Overall budget"
+        : (thisMonth.find((t) => t.category_id === b.category_id)?.category
+            ?.name ?? "A category");
+    insights.push({
+      id: `budget-${b.id}`,
+      tone: "warning",
+      title: `Over budget: ${name}`,
+      detail: `Spent ${formatCurrency(spent)} of a ${formatCurrency(Number(b.amount))} budget.`,
+    });
+  }
+
+  // Biggest recurring bill.
+  const recurring = transactions
+    .filter((t) => t.is_recurring && t.type === "expense")
+    .sort((a, b) => Number(b.amount) - Number(a.amount));
+  if (recurring.length > 0) {
+    const top = recurring[0];
+    insights.push({
+      id: "recurring",
+      tone: "neutral",
+      title: `${top.category?.name ?? top.note ?? "A recurring bill"} is your biggest recurring cost`,
+      detail: `${formatCurrency(Number(top.amount))} every ${top.recurrence_interval ?? "month"}.`,
+    });
+  }
+
+  return insights;
 }

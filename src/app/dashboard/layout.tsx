@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LogOut, Wallet } from "lucide-react";
+import { Wallet } from "lucide-react";
 import { getUser } from "@/lib/data";
 import { SidebarNav } from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
+import { SignOutButton } from "@/components/sign-out-button";
+import { ConfirmProvider } from "@/components/ui/confirm";
 
 export default async function DashboardLayout({
   children,
@@ -15,6 +16,7 @@ export default async function DashboardLayout({
   if (!user) redirect("/login");
 
   return (
+    <ConfirmProvider>
     <div className="flex min-h-screen flex-col md:flex-row">
       {/* Sidebar */}
       <aside className="flex flex-col gap-6 border-b border-border bg-card p-4 md:w-60 md:border-b-0 md:border-r">
@@ -33,11 +35,7 @@ export default async function DashboardLayout({
 
         <div className="hidden items-center justify-between gap-2 md:flex">
           <ThemeToggle />
-          <form action="/auth/signout" method="post">
-            <Button variant="ghost" size="sm" type="submit">
-              <LogOut className="h-4 w-4" /> Sign out
-            </Button>
-          </form>
+          <SignOutButton />
         </div>
       </aside>
 
@@ -47,14 +45,11 @@ export default async function DashboardLayout({
           <span className="text-sm text-muted-foreground truncate">
             {user.email}
           </span>
-          <form action="/auth/signout" method="post" className="md:hidden">
-            <Button variant="ghost" size="sm" type="submit">
-              <LogOut className="h-4 w-4" /> Sign out
-            </Button>
-          </form>
+          <SignOutButton className="md:hidden" />
         </header>
         <main className="flex-1 p-6">{children}</main>
       </div>
     </div>
+    </ConfirmProvider>
   );
 }

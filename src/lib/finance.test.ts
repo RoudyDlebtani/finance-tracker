@@ -6,8 +6,9 @@ import {
   monthlySeries,
   expensesByCategory,
   upcomingRecurring,
+  buildInsights,
 } from "./finance";
-import type { TransactionWithCategory } from "./types";
+import type { Budget, TransactionWithCategory } from "./types";
 
 let seq = 0;
 function tx(partial: Partial<TransactionWithCategory>): TransactionWithCategory {
@@ -169,5 +170,78 @@ describe("upcomingRecurring", () => {
       3,
     );
     expect(result).toHaveLength(0);
+  });
+});
+
+describe("buildInsights", () => {
+  // Fixed "now" so month boundaries are deterministic.
+  const now = new Date("2026-03-15T12:00:00");
+  const food = { id: "c1", name: "Food", color: "#f97316", icon: "utensils" };
+
+  function budget(partial: Partial<Budget>): Budget {
+    return {
+      id: "b0",
+      user_id: "u1",
+      category_id: null,
+      amount: 0,
+      period: "monthly",
+      created_at: "2026-01-01T00:00:00Z",
+      ...partial,
+    };
+  }
+
+  it("returns a single empty-state insight when there are no transactions", () => {
+    const result = buildInsights([], [], now);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("empty");
+    expect(result[0].tone).toBe("neutral");
+  });
+
+  it("surfaces the top spending category for the month", () => {
+    const result = buildInsights(
+      [
+        tx({ date: "2026-03-02", type: "income", amount: 1000 }),
+        tx({ date: "2026-03-05", type: "expense", amount: 300, category_id: "c1", category: food }),
+        tx({ date: "2026-03-08", type: "expense", amount: 50 }),
+      ],
+      [],
+      now,
+    );
+    const top = result.find((i) => i.id === "top-category");
+    expect(top?.title).toContain("Food");
+  });
+
+  it("flags a category that is over budget this month", () => {
+    const result = buildInsights(
+      [tx({ date: "2026-03-05", type: "expense", amount: 400, category_id: "c1", category: food })],
+      [budget({ id: "b1", category_id: "c1", amount: 200 })],
+      now,
+    );
+    const over = result.find((i) => i.id === "budget-b1");
+    expect(over?.tone).toBe("warning");
+    expect(over?.title).toContain("Food");
+  });
+
+  it("reports spending up vs a lower previous month", () => {
+    const result = buildInsights(
+      [
+        tx({ date: "2026-02-10", type: "expense", amount: 100 }),
+        tx({ date: "2026-03-10", type: "expense", amount: 150 }),
+      ],
+      [],
+      now,
+    );
+    const trend = result.find((i) => i.id === "trend");
+    expect(trend?.title).toContain("up");
+    expect(trend?.tone).toBe("negative");
+  });
+
+  it("omits the trend insight when last month had no expenses", () => {
+    const result = buildInsights(
+      [tx({ date: "2026-03-10", type: "expense", amount: 150 })],
+      [],
+      now,
+    );
+    expect(result.find((i) => i.id === "trend")).toBeUndefined();
   });
 });

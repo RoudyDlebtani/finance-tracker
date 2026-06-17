@@ -15,9 +15,12 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
+import { useConfirm, useAlert } from "@/components/ui/confirm";
 
 export function GoalsView({ goals }: { goals: Goal[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
+  const alert = useAlert();
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<Goal | null>(null);
   const [contributing, setContributing] = useState<Goal | null>(null);
@@ -29,12 +32,18 @@ export function GoalsView({ goals }: { goals: Goal[] }) {
   };
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this goal?")) return;
+    const ok = await confirm({
+      title: "Delete goal?",
+      message: "This can't be undone.",
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     const fd = new FormData();
     fd.set("id", id);
     const result = await deleteGoal(fd);
     if (!result.ok) {
-      alert(result.error);
+      await alert({ title: "Couldn't delete", message: result.error });
       return;
     }
     router.refresh();
@@ -207,6 +216,23 @@ function GoalForm({ goal, onDone }: { goal: Goal | null; onDone: () => void }) {
           />
         </div>
       </div>
+      {goal && (
+        <div>
+          <Label htmlFor="current_amount">Saved so far</Label>
+          <Input
+            id="current_amount"
+            name="current_amount"
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue={goal.current_amount}
+            placeholder="0.00"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Correct the balance directly — e.g. change 100 to 200.
+          </p>
+        </div>
+      )}
       {error && <p className="text-sm text-negative">{error}</p>}
       <Button type="submit" className="w-full" disabled={saving}>
         {saving ? "Saving…" : "Save goal"}

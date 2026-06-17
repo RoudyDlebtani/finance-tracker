@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import type {
+  Account,
   Budget,
   Category,
   Goal,
+  Profile,
   TransactionWithCategory,
 } from "@/lib/types";
 
@@ -47,4 +49,30 @@ export async function getGoals(): Promise<Goal[]> {
     .select("*")
     .order("created_at", { ascending: false });
   return data ?? [];
+}
+
+export async function getAccounts(): Promise<Account[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("accounts")
+    .select("*")
+    .order("created_at", { ascending: true });
+  return data ?? [];
+}
+
+/** The current user's preferences, with sane defaults when no row exists yet. */
+export async function getProfile(): Promise<Profile> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data } = await supabase.from("profiles").select("*").maybeSingle();
+  return (
+    data ?? {
+      user_id: user?.id ?? "",
+      display_name: null,
+      currency: "USD",
+      created_at: new Date().toISOString(),
+    }
+  );
 }

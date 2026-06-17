@@ -120,6 +120,18 @@ async function main() {
       recurrence_interval: "monthly",
     });
 
+    // Electricity — paid at the start of each month (recurring expense).
+    rows.push({
+      user_id: userId,
+      category_id: cat("Other"),
+      amount: 90,
+      type: "expense",
+      date: iso(setDate(monthStart, 1)),
+      note: "Electricity bill",
+      is_recurring: true,
+      recurrence_interval: "monthly",
+    });
+
     // Random everyday expenses across categories.
     const count = faker.number.int({ min: 15, max: 25 });
     for (let i = 0; i < count; i++) {

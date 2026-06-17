@@ -3,15 +3,16 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
-import { AlertTriangle, Pencil } from "lucide-react";
+import { AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import type { Budget, Category, TransactionWithCategory } from "@/lib/types";
-import { saveBudget } from "@/app/dashboard/actions";
+import { saveBudget, deleteBudget } from "@/app/dashboard/actions";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
+import { useConfirm, useAlert } from "@/components/ui/confirm";
 
 interface Props {
   budgets: Budget[];
@@ -21,7 +22,37 @@ interface Props {
 
 export function BudgetsView({ budgets, categories, transactions }: Props) {
   const router = useRouter();
+  const confirm = useConfirm();
+  const alert = useAlert();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Budget | null>(null);
+
+  const refresh = () => {
+    setOpen(false);
+    setEditing(null);
+    router.refresh();
+  };
+
+  async function handleDelete(id: string) {
+    const ok = await confirm({
+      title: "Delete budget?",
+      message: "This can't be undone.",
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    const fd = new FormData();
+    fd.set("id", id);
+    const result = await deleteBudget(fd);
+    if (!result.ok) {
+      await alert({ title: "Couldn't delete", message: result.error });
+      return;
+    }
+    router.refresh();
+  }
+
+  const categoryName = (id: string | null) =>
+    id ? (categories.find((c) => c.id === id)?.name ?? "") : "Overall (all spending)";
 
   // Expenses for the current month, grouped by category id (null for the total).
   const { byCategory, total } = useMemo(() => {
@@ -53,7 +84,12 @@ export function BudgetsView({ budgets, categories, transactions }: Props) {
             Monthly limits and how you&apos;re tracking against them.
           </p>
         </div>
-        <Button onClick={() => setOpen(true)}>
+        <Button
+          onClick={() => {
+            setEditing(null);
+            setOpen(true);
+          }}
+        >
           <Pencil className="h-4 w-4" /> Set budget
         </Button>
       </div>
@@ -64,6 +100,11 @@ export function BudgetsView({ budgets, categories, transactions }: Props) {
           label="Overall monthly budget"
           spent={total}
           limit={Number(overall.amount)}
+          onEdit={() => {
+            setEditing(overall);
+            setOpen(true);
+          }}
+          onDelete={() => handleDelete(overall.id)}
         />
       )}
 
@@ -79,6 +120,11 @@ export function BudgetsView({ budgets, categories, transactions }: Props) {
                 color={c.color}
                 spent={byCategory.get(c.id) ?? 0}
                 limit={Number(b.amount)}
+                onEdit={() => {
+                  setEditing(b);
+                  setOpen(true);
+                }}
+                onDelete={() => handleDelete(b.id)}
               />
             );
           })}
@@ -92,13 +138,17 @@ export function BudgetsView({ budgets, categories, transactions }: Props) {
         </Card>
       )}
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Set a budget">
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={editing ? "Edit budget" : "Set a budget"}
+      >
         <BudgetForm
+          key={editing?.id ?? "new"}
           categories={categories}
-          onDone={() => {
-            setOpen(false);
-            router.refresh();
-          }}
+          budget={editing}
+          categoryLabel={editing ? categoryName(editing.category_id) : ""}
+          onDone={refresh}
         />
       </Modal>
     </div>
@@ -110,11 +160,15 @@ function BudgetBar({
   color,
   spent,
   limit,
+  onEdit,
+  onDelete,
 }: {
   label: string;
   color?: string;
   spent: number;
   limit: number;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   const pct = limit > 0 ? (spent / limit) * 100 : 0;
   const over = spent > limit;
@@ -137,7 +191,19 @@ function BudgetBar({
           )}
           {label}
         </CardTitle>
-        {over && <AlertTriangle className="h-4 w-4 text-negative" />}
+        <div className="flex items-center gap-1">
+          {over && <AlertTriangle className="h-4 w-4 text-negative" />}
+          {onEdit && (
+            <Button variant="ghost" size="icon" onClick={onEdit}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {onDelete && (
+            <Button variant="ghost" size="icon" onClick={onDelete}>
+              <Trash2 className="h-4 w-4 text-negative" />
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-2">
         <div className="flex justify-between text-sm">
@@ -166,9 +232,13 @@ function BudgetBar({
 
 function BudgetForm({
   categories,
+  budget,
+  categoryLabel,
   onDone,
 }: {
   categories: Category[];
+  budget: Budget | null;
+  categoryLabel: string;
   onDone: () => void;
 }) {
   const [saving, setSaving] = useState(false);
@@ -191,14 +261,25 @@ function BudgetForm({
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
         <Label htmlFor="category_id">Applies to</Label>
-        <Select id="category_id" name="category_id" defaultValue="">
-          <option value="">Overall (all spending)</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
+        {budget ? (
+          <>
+            <input
+              type="hidden"
+              name="category_id"
+              value={budget.category_id ?? ""}
+            />
+            <p className="mt-1 text-sm text-foreground">{categoryLabel}</p>
+          </>
+        ) : (
+          <Select id="category_id" name="category_id" defaultValue="">
+            <option value="">Overall (all spending)</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        )}
       </div>
       <div>
         <Label htmlFor="amount">Monthly limit</Label>
@@ -209,6 +290,7 @@ function BudgetForm({
           min="0"
           step="0.01"
           required
+          defaultValue={budget?.amount ?? ""}
           placeholder="0.00"
         />
         <p className="mt-1 text-xs text-muted-foreground">

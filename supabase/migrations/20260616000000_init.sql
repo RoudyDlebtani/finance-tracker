@@ -46,34 +46,12 @@ create table if not exists public.goals (
   created_at     timestamptz not null default now()
 );
 
--- A wallet/account whose balance is tracked manually (no link to transactions).
--- balance has no >= 0 check on purpose — a credit card can be negative.
-create table if not exists public.accounts (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references auth.users (id) on delete cascade,
-  name        text not null,
-  type        text not null default 'checking'
-              check (type in ('checking', 'savings', 'cash', 'credit', 'investment')),
-  balance     numeric(12, 2) not null default 0,
-  color       text not null default '#6366f1',
-  created_at  timestamptz not null default now()
-);
-
--- Per-user preferences. One row per user, keyed by user_id (seeded on signup).
-create table if not exists public.profiles (
-  user_id      uuid primary key references auth.users (id) on delete cascade,
-  display_name text,
-  currency     text not null default 'USD',
-  created_at   timestamptz not null default now()
-);
-
 -- Helpful indexes
 create index if not exists transactions_user_date_idx on public.transactions (user_id, date desc);
 create index if not exists transactions_category_idx on public.transactions (category_id);
 create index if not exists categories_user_idx on public.categories (user_id);
 create index if not exists budgets_user_idx on public.budgets (user_id);
 create index if not exists goals_user_idx on public.goals (user_id);
-create index if not exists accounts_user_idx on public.accounts (user_id);
 
 -- Enforce "one budget per category" and "one overall budget" per user.
 -- Two partial indexes are required because NULL category_id (the overall
@@ -90,14 +68,12 @@ alter table public.categories   enable row level security;
 alter table public.transactions enable row level security;
 alter table public.budgets      enable row level security;
 alter table public.goals        enable row level security;
-alter table public.accounts     enable row level security;
-alter table public.profiles     enable row level security;
 
 do $$
 declare
   t text;
 begin
-  foreach t in array array['categories', 'transactions', 'budgets', 'goals', 'accounts', 'profiles']
+  foreach t in array array['categories', 'transactions', 'budgets', 'goals']
   loop
     execute format('drop policy if exists "owner_select" on public.%I;', t);
     execute format('drop policy if exists "owner_insert" on public.%I;', t);
@@ -133,7 +109,6 @@ begin
     (new.id, 'Shopping',      '#ec4899', 'shopping-bag'),
     (new.id, 'Health',        '#14b8a6', 'heart-pulse'),
     (new.id, 'Other',         '#64748b', 'circle');
-  insert into public.profiles (user_id) values (new.id);
   return new;
 end $$;
 
@@ -195,8 +170,7 @@ end $$;
 -- / migrations) do NOT inherit these automatically, so grant them explicitly.
 -- Every row stays protected by the owner_* RLS policies above.
 grant select, insert, update, delete
-  on public.categories, public.transactions, public.budgets, public.goals,
-     public.accounts, public.profiles
+  on public.categories, public.transactions, public.budgets, public.goals
   to authenticated;
 
 grant execute on function public.increment_goal(uuid, numeric) to authenticated;
